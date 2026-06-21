@@ -1,0 +1,25 @@
+{
+  "name": "three-vite-template",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build2": "vite build",
+    "deploy": "gh-pages -d dist",
+    "preview": "vite preview",
+    "release": "pnpm run build2 && pnpm run deploy"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "gh-pages": "^6.3.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "@types/three": "^0.184.1",
+    "mitt": "^3.0.1",
+    "three": "^0.184.0"
+  }
+}
