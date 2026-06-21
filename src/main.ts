@@ -13,8 +13,8 @@ import DigitalWorld from './world/DigitalWorld'
   camera.position.set(0,10,15)
   control.target.set(0,5,0)
 
-  const axesHelper = new THREE.AxesHelper(10)
-  scene.add(axesHelper)
+  // const axesHelper = new THREE.AxesHelper(10)
+  // scene.add(axesHelper)
 
   setLight()
   setEnv()

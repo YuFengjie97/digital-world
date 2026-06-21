@@ -1,4 +1,4 @@
-import { abs, attribute, cameraPosition, cos, cross, deltaTime, dot, emissive, float, floor, Fn, fract, fwidth, hash, hue, If, instancedArray, instanceIndex, mat3, max, min, mix, mod, mx_noise_float, mx_noise_vec3, normalLocal, normalView, normalWorld, PI2, positionLocal, positionViewDirection, positionWorld, pow, select, sin, smoothstep, step, texture, time, transformedNormalView, uniform, uv, varying, vec2, vec3, vec4 } from "three/tsl"
+import { abs, attribute, cameraPosition, cos, cross, deltaTime, distance, dot, emissive, float, floor, Fn, fract, fwidth, hash, hue, If, instancedArray, instanceIndex, mat3, max, min, mix, mod, mx_noise_float, mx_noise_vec3, normalLocal, normalView, normalWorld, PI2, positionLocal, positionViewDirection, positionWorld, pow, select, sin, smoothstep, step, texture, time, transformedNormalView, uniform, uv, varying, vec2, vec3, vec4 } from "three/tsl"
 import * as THREE from "three/webgpu"
 
 import {camera, renderer, scene} from '@/world/scene'
@@ -66,7 +66,17 @@ async function getModelGeo(){
 
 
 const COL = uniform(new THREE.Color(0,1,0))
+const stateSize = 100
+const stateBuffer = instancedArray(stateSize, 'float')
 
+const updateState = Fn(() => {
+  const idx = float(instanceIndex)
+  const v = hash(idx.mul(11.34).add(time.mul(10)))
+  stateBuffer.element(idx).assign(step(.5, v))
+})().compute(stateSize)
+emitter.on('animate', () => {
+  renderer.compute(updateState)
+})
 
 async function baseModel(geo: THREE.BufferGeometry, tex: THREE.CanvasTexture<HTMLCanvasElement>){
 
@@ -75,24 +85,13 @@ async function baseModel(geo: THREE.BufferGeometry, tex: THREE.CanvasTexture<HTM
 
   // const geo = new THREE.BoxGeometry(5,5,5)
   const mat = new THREE.MeshBasicNodeMaterial()
-  mat.transparent = true
-  mat.side = THREE.DoubleSide
+  // mat.transparent = true
+  // mat.side = THREE.DoubleSide
   // mat.depthWrite = false
-  mat.blending = THREE.AdditiveBlending
-
-  const stateSize = 100
-  const stateBuffer = instancedArray(stateSize, 'float')
-
-  const updateState = Fn(() => {
-    const idx = float(instanceIndex)
-    const v = hash(idx.mul(11.34).add(time.mul(10)))
-    stateBuffer.element(idx).assign(step(.5, v))
-  })().compute(stateSize)
-  emitter.on('animate', () => {
-    renderer.compute(updateState)
-  })
+  // mat.blending = THREE.AdditiveBlending
 
 
+  
   const getTex = Fn(([uv, uvScale]: [ THREE.Node<"vec2">, THREE.Node<'float'>]) => {
     let uv2 = (uv.mul(uvScale))
     const id = floor(uv2)
@@ -106,6 +105,7 @@ async function baseModel(geo: THREE.BufferGeometry, tex: THREE.CanvasTexture<HTM
     const d = texture(tex, uv2).r
     return d
   })
+
 
   const vColStr = varying(float(0))
   mat.positionNode = Fn(() => {
@@ -123,11 +123,16 @@ async function baseModel(geo: THREE.BufferGeometry, tex: THREE.CanvasTexture<HTM
     const d = getTex(uv2, (modelUVScale))
 
 
-    // const viewDir = cameraPosition.sub(positionWorld).normalize()
-    const viewDir = positionViewDirection
-    const fresnel = pow(max(0, dot(normalWorld, viewDir)).oneMinus(), 2)
-    const col = vec4(COL.mul(.1), 1).mul(fresnel)
-    return mix(col, hue(COL, 1.2).mul(2.1).mul(vColStr), d)
+    const viewDir = cameraPosition.sub(positionWorld).normalize()
+    // const viewDir = positionViewDirection
+    const fresnel = abs(dot(normalWorld, viewDir)).oneMinus()
+    const col = vec3(COL.mul(.3)).mul(fresnel)
+    return mix(
+                col,
+                hue(COL, 1.2).mul(4.1).mul(vColStr),
+                  d.mul(
+                    smoothstep(0, 1, mx_noise_float(positionLocal.mul(.3).add(time)))
+                  ))
   })()
   const mesh = new THREE.Mesh(geo, mat)
   scene.add(mesh)
@@ -161,7 +166,7 @@ async function codeRain(){
   const threadSpeed = uniform(5)
   const threadLifeSpeed = uniform(3.)
 
-  const threadCount = 100
+  const threadCount = 400
   const threadLen = 20
   const COUNT = threadCount * threadLen
   const threadStateArr = new Float32Array(threadCount*4)
@@ -185,7 +190,7 @@ async function codeRain(){
     If(life.greaterThan(1), () => {
       // const p = mx_noise_vec3(vec2(11.23, 34.56).add(idx)).add(vec3(0,.5,0)).mul(vec3(40,40,40))
       const ang = hash(idx.mul(11.23)).mul(PI2)
-      const r = hash(idx.mul(23.45)).mul(10).add(20)
+      const r = hash(idx.mul(23.45)).mul(20).add(30)
       const x = cos(ang).mul(r)
       const z = sin(ang).mul(r)
       const y = hash(idx.mul(34.21)).mul(20)
@@ -252,11 +257,40 @@ async function codeRain(){
   gui.add(threadLifeSpeed, 'value', 0, 5.1, .01).name('threadLifeSpeed')
 }
 
+function Ground(tex: THREE.CanvasTexture<HTMLCanvasElement>){
+  const geo = new THREE.PlaneGeometry(100,100,1,1)
+  const mat = new THREE.MeshBasicNodeMaterial()
+  mat.transparent = true
+  mat.side = THREE.DoubleSide
+
+  mat.colorNode = Fn(() => {
+    const scale = 50
+    let uv2 = uv().toVar().mul(scale)
+    const id = floor(uv2)
+    uv2 = fract(uv2)
+    uv2.x.mulAssign(.5)
+    // const state = stateBuffer.element(mod(dot(id, vec2(1)), stateSize))
+    const state = step(.5, hash(dot(id, vec2(11.23,45.21)).add(time.mul(5))))
+    uv2.x.addAssign(float(.5).mul(state))
+    const d = texture(tex, uv2).r
+
+    id.subAssign(scale/2)
+    const mask = sin(id.length().sub(time.mul(5)))
+
+    return vec4(COL, 1).mul(d).mul(mask)
+  })()
+
+  const mesh = new THREE.Mesh(geo, mat)
+  mesh.rotation.x = -Math.PI/2
+  scene.add(mesh)
+}
+
 export default async function DigitalWorld(){
   const tex = await getCanvasTex()
   const geo = await getModelGeo()
 
   await baseModel(geo, tex)
+  Ground(tex)
 
   await codeRain()
 
