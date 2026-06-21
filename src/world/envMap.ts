@@ -15,7 +15,7 @@ function getEnvHdr(){
 
 function getEnvCube(){
   console.log(import.meta.env.BASE_URL);
-  const path = import.meta.env.BASE_URL + 'img/skybox/sky_12_cubemap_2k/'
+  const path = import.meta.env.BASE_URL + 'img/skybox/sky_98_cubemap_2k/'
   const loader = new THREE.CubeTextureLoader().setPath( path );
   const cubeTexture = loader.load( [
     'px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'
@@ -28,6 +28,6 @@ export function setEnv(){
   // scene.environment = envMap
   scene.background = envMap
   scene.backgroundBlurriness = 0.4;
-  scene.backgroundIntensity = .4;
+  scene.backgroundIntensity = .1;
   // scene.environmentIntensity = 0.4;
 }
